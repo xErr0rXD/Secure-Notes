@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en" itemscope itemtype="http://schema.org/WebApplication">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- === SEO & METADATA === -->
+    <title>Secure Notes</title>
+    <meta name="description" content="Your private digital sanctuary. End-to-end AES-256 encryption ensures your thoughts remain exclusively yours.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#F2F2F7">
+    <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=SN&background=F2F2F7&color=E0A82E&rounded=true&bold=true">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['-apple-system', 'BlinkMacSystemFont', "Segoe UI", 'Roboto', 'Helvetica', 'Arial', 'sans-serif'] },
+                    colors: {
+                        ios: { 
+                            bg: 'var(--bg-color)',
+                            card: 'var(--card-color)',
+                            text: 'var(--text-color)',
+                            subtext: 'var(--subtext-color)',
+                            border: 'var(--border-color)',
+                            yellow: '#E0A82E', 
+                            blue: '#007AFF', 
+                            red: '#FF3B30' 
+                        }
+                    },
+                    animation: {
+                        'shake': 'shake 0.4s cubic-bezier(.36,.07,.19,.97) both',
+                        'slide-in': 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'fade-in': 'fadeIn 0.2s ease-out forwards',
+                    },
+                    keyframes: {
+                        shake: { '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' }, '20%, 80%': { transform: 'translate3d(2px, 0, 0)' }, '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' }, '40%, 60%': { transform: 'translate3d(4px, 0, 0)' } },
+                        slideIn: { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(0)' } },
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #F2F2F7; --card-color: #FFFFFF; --text-color: #000000; --subtext-color: #8E8E93; --border-color: #C6C6C8;
+        }
+        .dark {
+            --bg-color: #000000; --card-color: #1C1C1E; --text-color: #FFFFFF; --subtext-color: #98989D; --border-color: #38383A;
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; user-select: none; transition: background-color 0.3s, color 0.3s; }
+        input, textarea { font-size: 17px !important; user-select: text; background: transparent; color: var(--text-color); }
+        *:focus { outline: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .scroll-touch { -webkit-overflow-scrolling: touch; }
+        .note-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .ios-active:active { opacity: 0.5; transition: opacity 0.1s; }
+        .list-item-active:active { background-color: rgba(120, 120, 128, 0.1); }
+        .screen-transition { transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Sidebar */
+        .sidebar-backdrop { background: rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+        .sidebar-panel { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .sidebar-open .sidebar-panel { transform: translateX(0); }
+        
+        /* Active Nav State */
+        .nav-item.active { background-color: var(--border-color); opacity: 0.7; }
+    </style>
+</head>
+<body class="h-[100dvh] w-full overflow-hidden font-sans antialiased flex flex-col">
+
+    <!-- ==================== 1. AUTH SCREEN ==================== -->
+    <div id="screen-auth" class="fixed inset-0 z-50 bg-ios-bg flex flex-col items-center pt-24 px-6 transition-opacity duration-300">
+        <div class="w-[86px] h-[86px] bg-gradient-to-br from-amber-300 to-amber-500 rounded-[22px] shadow-lg flex items-center justify-center mb-6 transform transition hover:scale-105 duration-300">
+            <i class="fa-solid fa-shield-halved text-white text-5xl drop-shadow-sm"></i>
+        </div>
+        <h1 class="text-2xl font-bold mb-2 text-center tracking-tight">Secure Notes</h1>
+        <p class="text-ios-subtext text-sm text-center mb-8">Your private digital sanctuary.</p>
+
+        <div class="relative w-full max-w-[320px] h-8 bg-gray-400/20 rounded-lg p-0.5 flex mb-6">
+            <div id="auth-indicator" class="absolute left-0.5 top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-ios-card rounded-[6px] shadow-sm transition-transform duration-300"></div>
+            <button id="tab-login" class="w-1/2 z-10 text-[13px] font-medium text-ios-text transition-colors">Log In</button>
+            <button id="tab-signup" class="w-1/2 z-10 text-[13px] font-medium text-ios-subtext transition-colors">Sign Up</button>
+        </div>
+        
+        <div class="w-full max-w-[320px] space-y-5">
+            <div class="bg-ios-card rounded-xl overflow-hidden shadow-sm border border-ios-border/50 divide-y divide-ios-border/50">
+                <div class="flex items-center px-4">
+                    <span class="w-20 text-[17px] font-normal">Email</span>
+                    <input id="auth-email" type="email" placeholder="Required" class="w-full py-3 text-[17px] placeholder-ios-subtext/50">
+                </div>
+                <div class="flex items-center px-4">
+                    <span class="w-20 text-[17px] font-normal">Password</span>
+                    <input id="auth-pass" type="password" placeholder="Required" class="w-full py-3 text-[17px] placeholder-ios-subtext/50">
+                </div>
+            </div>
+            <button id="btn-auth" class="w-full bg-ios-blue text-white font-semibold py-3.5 rounded-xl ios-active transition text-[17px] flex items-center justify-center gap-2 shadow-sm">
+                <span id="btn-auth-text">Log In</span>
+                <i id="btn-auth-loader" class="fa-solid fa-circle-notch spin hidden"></i>
+            </button>
+            <p id="auth-error" class="text-center text-xs font-medium text-red-500 min-h-[20px] hidden animate-pulse"></p>
+        </div>
+        
+        <div class="mt-auto mb-8 text-center">
+            <p class="text-[11px] text-ios-subtext font-medium mb-1">
+                <i class="fa-solid fa-lock mr-1"></i> End-to-End Encrypted
+            </p>
+            <p class="text-[10px] text-ios-subtext/70 max-w-[240px] mx-auto leading-tight">
+                AES-256 encryption protects your data before it leaves your device. We cannot see your notes.
+            </p>
+        </div>
+    </div>
+
+    <!-- ==================== 2. LOCK SCREEN ==================== -->
+    <div id="screen-vault" class="fixed inset-0 z-40 bg-ios-bg flex flex-col items-center justify-center px-8 hidden">
+        <div class="w-16 h-16 bg-ios-card rounded-full flex items-center justify-center mb-6 shadow-sm">
+            <i class="fa-solid fa-key text-ios-subtext text-2xl"></i>
+        </div>
+        <h2 id="vault-title" class="text-xl font-bold mb-2">Unlock Vault</h2>
+        <p id="user-display" class="text-ios-subtext text-xs mb-8 font-medium text-center"></p>
+        
+        <div class="w-full max-w-[280px] space-y-4">
+            <input id="vault-key" type="password" placeholder="Master Password" class="w-full bg-ios-card text-center rounded-xl px-4 py-3.5 text-[17px] shadow-sm placeholder-ios-subtext/50 border border-transparent focus:border-ios-blue/30 transition-colors">
+            <button id="btn-decrypt" class="w-full text-ios-blue font-semibold text-[17px] py-2 ios-active">Unlock</button>
+        </div>
+
+        <div id="setup-hint" class="hidden mt-8 p-4 bg-ios-card/60 rounded-xl text-center backdrop-blur-md border border-ios-border/50 shadow-sm">
+            <p class="text-ios-blue text-xs font-bold mb-1">Initialize Vault</p>
+            <p class="text-ios-subtext text-[11px] leading-relaxed">Create a strong <strong>Master Password</strong>. This is the only key to your data.<br><span class="text-red-500 font-medium">It cannot be recovered if lost.</span></p>
+        </div>
+        <button id="btn-logout" class="absolute bottom-10 text-ios-red text-[15px] font-medium px-6 py-2 ios-active">Log Out</button>
+    </div>
+
+    <!-- ==================== 3. SIDEBAR & MAIN APP ==================== -->
+    <div id="screen-app" class="fixed inset-0 bg-ios-bg hidden flex-col z-10">
+        
+        <!-- SIDEBAR DRAWER -->
+        <div id="sidebar-overlay" class="fixed inset-0 z-30 sidebar-backdrop"></div>
+        <div id="sidebar-panel" class="fixed inset-y-0 left-0 w-[280px] bg-ios-bg z-40 sidebar-panel shadow-2xl border-r border-ios-border/30 flex flex-col">
+            <div class="pt-[max(20px,env(safe-area-inset-top))] px-4 pb-4 flex items-center justify-between mt-2">
+                <h2 class="text-[22px] font-bold text-ios-text">Folders</h2>
+                <button id="btn-sidebar-close" class="w-8 h-8 flex items-center justify-center text-ios-blue ios-active"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="px-3 space-y-1">
+                <button id="nav-notes" class="nav-item w-full flex items-center gap-3 px-3 py-3 rounded-[10px] bg-ios-card shadow-sm active:scale-[0.98] transition-transform">
+                    <div class="w-8 h-8 rounded-full bg-ios-yellow flex items-center justify-center text-white"><i class="fa-solid fa-note-sticky"></i></div>
+                    <span class="text-[17px] font-semibold flex-1 text-left text-ios-text">All Notes</span>
+                    <span id="count-notes" class="text-ios-subtext text-[15px]">0</span>
+                </button>
+                <button id="nav-trash" class="nav-item w-full flex items-center gap-3 px-3 py-3 rounded-[10px] hover:bg-ios-card/50 active:scale-[0.98] transition-all">
+                    <div class="w-8 h-8 rounded-full bg-ios-red flex items-center justify-center text-white"><i class="fa-solid fa-trash"></i></div>
+                    <span class="text-[17px] font-semibold flex-1 text-left text-ios-text">Recently Deleted</span>
+                    <span id="count-trash" class="text-ios-subtext text-[15px]">0</span>
+                </button>
+            </div>
+            <div class="mt-auto p-4 border-t border-ios-border/30 mb-[env(safe-area-inset-bottom)]">
+                <button id="btn-settings-sidebar" class="flex items-center gap-2 text-ios-subtext text-[15px] ios-active w-full">
+                    <i class="fa-solid fa-gear"></i> Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- LIST VIEW -->
+        <div id="view-list" class="flex-1 flex flex-col h-full w-full absolute inset-0 bg-ios-bg">
+            <div class="sticky top-0 z-20 bg-ios-bg/95 backdrop-blur-xl pt-[env(safe-area-inset-top)] border-b border-ios-border/30">
+                <div class="flex justify-between items-center px-4 h-[44px]">
+                    <button id="btn-menu-toggle" class="text-ios-blue flex items-center gap-1 ios-active font-medium text-[17px]">
+                        <i class="fa-solid fa-chevron-left text-[20px]"></i> Folders
+                    </button>
+                    <div class="w-8"></div> <!-- Spacer -->
+                </div>
+                <div class="px-4 pb-2">
+                    <h1 id="list-title" class="text-[34px] font-bold tracking-tight text-ios-text">Notes</h1>
+                </div>
+                <div class="px-4 pb-3">
+                    <div class="relative group">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-ios-subtext text-sm z-10"></i>
+                        <input id="search-input" type="text" placeholder="Search" class="w-full bg-gray-400/20 rounded-[10px] pl-8 pr-4 py-2 text-[17px] placeholder-ios-subtext/70 focus:bg-gray-400/30 transition-colors text-ios-text">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto scroll-touch px-4 pb-24 pt-4">
+                
+                <!-- Pinned Section -->
+                <div id="pinned-section" class="hidden mb-6">
+                    <h3 class="text-[12px] font-semibold text-ios-subtext uppercase ml-3 mb-1.5 tracking-wide">Pinned</h3>
+                    <div id="pinned-container" class="bg-ios-card rounded-[10px] overflow-hidden shadow-sm divide-y divide-ios-border/30 border border-ios-border/30"></div>
+                </div>
+
+                <!-- Notes Section -->
+                <div id="notes-section">
+                    <h3 id="notes-header" class="hidden text-[12px] font-semibold text-ios-subtext uppercase ml-3 mb-1.5 tracking-wide">Notes</h3>
+                    <div id="notes-container" class="bg-ios-card rounded-[10px] overflow-hidden shadow-sm divide-y divide-ios-border/30 border border-ios-border/30 min-h-[50px]"></div>
+                </div>
+
+                <div id="empty-state" class="hidden mt-24 text-center flex flex-col items-center opacity-40">
+                    <i class="fa-regular fa-pen-to-square text-ios-text text-5xl mb-4"></i>
+                    <p id="empty-msg" class="text-ios-text text-[17px] font-semibold">No Notes</p>
+                </div>
+            </div>
+            
+            <!-- Footer Bar -->
+            <div class="absolute bottom-0 w-full bg-ios-bg/95 backdrop-blur-md border-t border-ios-border/30 pt-3 pb-[max(20px,env(safe-area-inset-bottom))] px-5 flex justify-between items-start z-20 h-[85px]">
+                <div class="w-10"></div>
+                <span id="note-count-lbl" class="text-[11px] text-ios-text font-medium mt-2">0 Notes</span>
+                <!-- DYNAMIC BUTTON: Compose (Notes) OR Empty Trash (Trash) -->
+                <button id="footer-action-btn" class="w-10 h-10 flex items-center justify-end text-ios-yellow ios-active">
+                    <i class="fa-regular fa-pen-to-square text-[26px]"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- EDITOR VIEW -->
+        <div id="view-editor" class="fixed inset-0 z-30 bg-ios-card flex flex-col translate-x-full screen-transition shadow-2xl">
+            <div class="pt-[max(10px,env(safe-area-inset-top))] px-4 pb-3 flex justify-between items-center bg-ios-card/95 backdrop-blur border-b border-ios-border/30 relative z-50">
+                <button id="btn-back" class="flex items-center text-ios-yellow text-[17px] font-medium -ml-2 px-2 py-1 ios-active">
+                    <i class="fa-solid fa-chevron-left mr-1.5 text-[22px]"></i> Notes
+                </button>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 text-[10px] font-semibold text-ios-subtext uppercase tracking-widest border border-ios-border/50 px-2 py-1 rounded-md">
+                        <span id="stats-words">0 Words</span>
+                    </div>
+                    <button id="btn-editor-more" class="w-7 h-7 rounded-full border-2 border-ios-yellow text-ios-yellow flex items-center justify-center ios-active">
+                        <i class="fa-solid fa-ellipsis text-[14px]"></i>
+                    </button>
+                    <button id="btn-done" class="text-ios-yellow font-bold text-[17px] ios-active px-2 py-1">Done</button>
+                </div>
+            </div>
+            <!-- More Menu Dropdown -->
+            <div id="editor-menu" class="hidden absolute right-4 top-[100px] w-52 bg-ios-card/95 backdrop-blur-xl rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border border-ios-border/30 overflow-hidden origin-top-right z-[60]">
+                <button id="btn-toggle-pin" class="w-full text-left px-4 py-3.5 text-ios-text font-medium active:bg-gray-100 dark:active:bg-gray-800 flex items-center gap-3 border-b border-ios-border/30">
+                    <i class="fa-solid fa-thumbtack text-ios-subtext"></i> <span id="pin-text">Pin Note</span>
+                </button>
+                <button id="btn-copy-note" class="w-full text-left px-4 py-3.5 text-ios-text font-medium active:bg-gray-100 dark:active:bg-gray-800 flex items-center gap-3 border-b border-ios-border/30">
+                    <i class="fa-regular fa-copy text-ios-subtext"></i> Copy Text
+                </button>
+                <button id="btn-delete-trigger" class="w-full text-left px-4 py-3.5 text-ios-red font-medium active:bg-gray-100 dark:active:bg-gray-800 flex items-center gap-3">
+                    <i class="fa-regular fa-trash-can"></i> Move to Trash
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto scroll-touch px-5 pb-10" id="editor-canvas">
+                <input id="note-title" type="text" placeholder="Title" class="w-full text-[28px] font-bold text-ios-text placeholder-ios-subtext/50 py-4 bg-transparent mt-1">
+                <textarea id="note-body" class="w-full h-full resize-none text-[17px] leading-relaxed text-ios-text placeholder-ios-subtext/50 bg-transparent" placeholder="Start typing..."></textarea>
+            </div>
+        </div>
+
+        <!-- SETTINGS VIEW -->
+        <div id="view-settings" class="fixed inset-0 z-30 bg-ios-bg flex flex-col translate-x-full screen-transition">
+            <div class="pt-[max(10px,env(safe-area-inset-top))] px-4 pb-3 flex items-center justify-between bg-ios-bg border-b border-ios-border/30 relative h-[50px]">
+                <button id="btn-settings-close" class="text-ios-blue font-medium text-[17px] ios-active px-2 py-1 flex items-center justify-start gap-1 w-24 -ml-2">
+                    <i class="fa-solid fa-chevron-left text-[22px] mt-[1px]"></i> Back
+                </button>
+                <h1 class="text-[17px] font-semibold text-ios-text absolute left-1/2 -translate-x-1/2">Settings</h1>
+                <div class="w-24"></div>
+            </div>
+            
+            <div class="p-4 space-y-6 overflow-y-auto">
+                <!-- 1. Account -->
+                <div class="bg-ios-card rounded-[12px] overflow-hidden shadow-sm border border-ios-border/50 p-4 flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl">
+                        <i class="fa-solid fa-circle-user"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-[11px] font-semibold text-ios-subtext uppercase tracking-wide">Account</p>
+                        <p id="settings-email" class="text-[17px] text-ios-text truncate font-medium"></p>
+                    </div>
+                </div>
+
+                <!-- 2. Appearance -->
+                <div>
+                    <p class="px-4 pb-2 text-[13px] text-ios-subtext uppercase">Appearance</p>
+                    <div class="bg-ios-card rounded-[12px] overflow-hidden shadow-sm border border-ios-border/50">
+                        <div class="w-full p-4 flex justify-between items-center">
+                            <span class="text-[17px] text-ios-text">Dark Mode</span>
+                            <button id="btn-toggle-theme" class="w-12 h-7 rounded-full bg-gray-300 relative transition-colors duration-300 focus:outline-none">
+                                <div id="theme-knob" class="w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 translate-x-0.5"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Data -->
+                <div>
+                    <p class="px-4 pb-2 text-[13px] text-ios-subtext uppercase">Data Management</p>
+                    <div class="bg-ios-card rounded-[12px] overflow-hidden shadow-sm border border-ios-border/50 divide-y divide-ios-border/30">
+                        <button id="btn-export-data" class="w-full p-4 text-left text-[17px] text-ios-blue active:bg-gray-100 dark:active:bg-gray-800 flex justify-between items-center">
+                            Backup Vault <i class="fa-solid fa-download text-ios-subtext text-[14px]"></i>
+                        </button>
+                        <button id="btn-import-data" class="w-full p-4 text-left text-[17px] text-ios-blue active:bg-gray-100 dark:active:bg-gray-800 flex justify-between items-center">
+                            Restore Backup <i class="fa-solid fa-upload text-ios-subtext text-[14px]"></i>
+                        </button>
+                    </div>
+                    <input type="file" id="file-import" class="hidden" accept=".json">
+                </div>
+
+                <!-- 4. Security -->
+                <div>
+                    <p class="px-4 pb-2 text-[13px] text-ios-subtext uppercase">Security</p>
+                    <div class="bg-ios-card rounded-[12px] overflow-hidden shadow-sm border border-ios-border/50">
+                        <button id="btn-lock-vault" class="w-full p-4 text-left text-[17px] text-ios-blue active:bg-gray-100 dark:active:bg-gray-800 flex justify-between items-center">
+                            Lock Vault Now <i class="fa-solid fa-lock text-ios-subtext text-[14px]"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-ios-card rounded-[12px] overflow-hidden shadow-sm border border-ios-border/50">
+                    <button id="btn-signout-settings" class="w-full p-4 text-center text-[17px] text-ios-red font-medium active:bg-gray-100 dark:active:bg-gray-800">Log Out</button>
+                </div>
+                <p class="text-center text-xs text-ios-subtext pt-4">Secure Notes v15.0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACTION SHEET (Shared for Delete/Trash) -->
+    <div id="action-sheet-overlay" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px] hidden opacity-0 transition-opacity duration-300">
+        <div id="action-sheet" class="absolute bottom-4 left-4 right-4 flex flex-col gap-2 transform translate-y-full transition-transform duration-300">
+            <div class="bg-ios-card/90 backdrop-blur-xl rounded-[14px] overflow-hidden">
+                <div class="p-3 text-center border-b border-ios-border/30">
+                    <p id="as-title" class="text-[13px] text-ios-subtext font-medium">This action cannot be undone.</p>
+                </div>
+                <button id="as-confirm" class="w-full py-3.5 text-[20px] font-normal text-ios-red active:bg-gray-200/50 dark:active:bg-gray-700/50 transition-colors">
+                    Delete
+                </button>
+            </div>
+            <button id="as-cancel" class="w-full py-3.5 bg-ios-card rounded-[14px] text-[20px] font-semibold text-ios-blue active:bg-gray-200/50 dark:active:bg-gray-700/50 transition-colors shadow-sm">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- RESTORE SHEET OVERLAY (NEW) -->
+    <div id="restore-sheet-overlay" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px] hidden opacity-0 transition-opacity duration-300">
+        <div id="restore-sheet" class="absolute bottom-4 left-4 right-4 flex flex-col gap-2 transform translate-y-full transition-transform duration-300">
+            <div class="bg-ios-card/90 backdrop-blur-xl rounded-[14px] overflow-hidden">
+                <div class="p-3 text-center border-b border-ios-border/30">
+                    <h3 class="text-[15px] font-semibold text-ios-text">Restore Backup?</h3>
+                    <p class="text-[13px] text-ios-subtext font-medium mt-1">This will replace your current vault with the backup data. This action cannot be undone.</p>
+                </div>
+                <button id="as-restore-confirm" class="w-full py-3.5 text-[20px] font-normal text-ios-red active:bg-gray-200/50 dark:active:bg-gray-700/50 transition-colors">
+                    Restore Vault
+                </button>
+            </div>
+            <button id="as-restore-cancel" class="w-full py-3.5 bg-ios-card rounded-[14px] text-[20px] font-semibold text-ios-blue active:bg-gray-200/50 dark:active:bg-gray-700/50 transition-colors shadow-sm">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // ==========================================
+        // !!! IMPORTANT: PASTE YOUR FIREBASE CONFIG HERE !!!
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "PASTE_YOUR_API_KEY_HERE", 
+            authDomain: "YOUR_APP.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // ==========================================
+        
+        const app = initializeApp(firebaseConfig); const auth = getAuth(app); const db = getFirestore(app);
+
+        // CRYPTO
+        const Crypto = {
+            enc: new TextEncoder(), dec: new TextDecoder(),
+            b64e: (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))),
+            b64d: (str) => { if(!str) throw new Error("Invalid"); return Uint8Array.from(atob(str), c => c.charCodeAt(0)).buffer; },
+            async deriveKey(pass, salt) {
+                const base = await crypto.subtle.importKey('raw', this.enc.encode(pass), {name: 'PBKDF2'}, false, ['deriveKey']);
+                return crypto.subtle.deriveKey({name: 'PBKDF2', salt: this.b64d(salt), iterations: 310000, hash: 'SHA-256'}, base, {name: 'AES-GCM', length: 256}, false, ['encrypt', 'decrypt']);
+            },
+            async encrypt(key, data) {
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const ct = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, this.enc.encode(JSON.stringify(data)));
+                return { iv: this.b64e(iv.buffer), ct: this.b64e(ct) };
+            },
+            async decrypt(key, obj) {
+                const pt = await crypto.subtle.decrypt({name: 'AES-GCM', iv: this.b64d(obj.iv)}, key, this.b64d(obj.ct));
+                return JSON.parse(this.dec.decode(pt));
+            }
+        };
+
+        // STATE
+        const State = { user: null, authMode: 'login', vaultMeta: null, rawEncryptedData: [], notes: [], masterKey: null, currentNoteId: null, isNewUser: false, viewMode: 'notes', pendingBackup: null };
+
+        // UI HELPERS
+        const UI = {
+            screens: { auth: document.getElementById('screen-auth'), vault: document.getElementById('screen-vault'), app: document.getElementById('screen-app') },
+            vault: {
+                title: document.getElementById('vault-title'), 
+                key: document.getElementById('vault-key'), 
+                btn: document.getElementById('btn-decrypt'), 
+                hint: document.getElementById('setup-hint'), 
+                display: document.getElementById('user-display')
+            },
+            app: { list: document.getElementById('notes-container'), pinnedList: document.getElementById('pinned-container'), pinnedSec: document.getElementById('pinned-section'), notesSecHeader: document.getElementById('notes-header'), empty: document.getElementById('empty-state'), count: document.getElementById('note-count-lbl'), editor: document.getElementById('view-editor'), settings: document.getElementById('view-settings'), title: document.getElementById('list-title'), addBtn: document.getElementById('btn-add'), menuBtn: document.getElementById('btn-menu-toggle'), moreMenu: document.getElementById('editor-menu'), stats: document.getElementById('stats-words'), pinText: document.getElementById('pin-text'), deleteTrigger: document.getElementById('btn-delete-trigger'), footerActionBtn: document.getElementById('footer-action-btn') },
+            sidebar: { overlay: document.getElementById('sidebar-overlay'), panel: document.getElementById('sidebar-panel'), navNotes: document.getElementById('nav-notes'), navTrash: document.getElementById('nav-trash'), cntNotes: document.getElementById('count-notes'), cntTrash: document.getElementById('count-trash') },
+            sheet: { overlay: document.getElementById('action-sheet-overlay'), panel: document.getElementById('action-sheet'), confirm: document.getElementById('as-confirm'), cancel: document.getElementById('as-cancel'), title: document.getElementById('as-title') },
+            restoreSheet: { overlay: document.getElementById('restore-sheet-overlay'), panel: document.getElementById('restore-sheet'), confirm: document.getElementById('as-restore-confirm'), cancel: document.getElementById('as-restore-cancel') }
+        };
+
+        const App = {
+            init() {
+                // Helper for safe binding
+                const safeBind = (id, event, handler) => {
+                    const el = document.getElementById(id);
+                    if(el) el[event] = handler;
+                };
+
+                // Events
+                safeBind('btn-auth', 'onclick', App.performAuth);
+                if(UI.vault.btn) UI.vault.btn.onclick = App.performDecrypt;
+                safeBind('btn-logout', 'onclick', () => signOut(auth));
+                safeBind('tab-login', 'onclick', () => App.setAuthMode('login'));
+                safeBind('tab-signup', 'onclick', () => App.setAuthMode('signup'));
+                
+                if(UI.app.footerActionBtn) UI.app.footerActionBtn.onclick = App.handleFooterAction;
+                
+                safeBind('btn-back', 'onclick', App.saveAndClose);
+                safeBind('btn-done', 'onclick', App.saveAndClose);
+                if(document.getElementById('search-input')) document.getElementById('search-input').oninput = App.renderList;
+                
+                // Sidebar
+                if(UI.app.menuBtn) UI.app.menuBtn.onclick = () => document.body.classList.add('sidebar-open');
+                safeBind('btn-sidebar-close', 'onclick', () => document.body.classList.remove('sidebar-open'));
+                if(UI.sidebar.overlay) UI.sidebar.overlay.onclick = () => document.body.classList.remove('sidebar-open');
+                
+                if(UI.sidebar.navNotes) UI.sidebar.navNotes.onclick = () => { App.switchView('notes'); document.body.classList.remove('sidebar-open'); };
+                if(UI.sidebar.navTrash) UI.sidebar.navTrash.onclick = () => { App.switchView('trash'); document.body.classList.remove('sidebar-open'); };
+                
+                // Editor Actions
+                safeBind('btn-editor-more', 'onclick', (e) => { e.stopPropagation(); UI.app.moreMenu.classList.toggle('hidden'); });
+                safeBind('editor-canvas', 'onclick', () => UI.app.moreMenu.classList.add('hidden'));
+                
+                safeBind('btn-delete-trigger', 'onclick', () => { UI.app.moreMenu.classList.add('hidden'); App.showActionSheet('delete'); });
+                safeBind('btn-toggle-pin', 'onclick', App.togglePin);
+                safeBind('btn-copy-note', 'onclick', App.copyNote);
+                
+                // Stats
+                const noteBody = document.getElementById('note-body');
+                if(noteBody) noteBody.addEventListener('input', App.updateStats);
+
+                // Settings
+                safeBind('btn-settings-sidebar', 'onclick', () => { document.body.classList.remove('sidebar-open'); App.openSettings(); });
+                
+                safeBind('btn-settings-close', 'onclick', () => UI.app.settings.classList.add('translate-x-full'));
+                safeBind('btn-lock-vault', 'onclick', () => { State.masterKey = null; State.notes = []; App.showVaultScreen(); UI.app.settings.classList.add('translate-x-full'); });
+                safeBind('btn-signout-settings', 'onclick', () => { signOut(auth); UI.app.settings.classList.add('translate-x-full'); });
+                
+                // Backup/Restore
+                safeBind('btn-export-data', 'onclick', App.exportData);
+                safeBind('btn-import-data', 'onclick', () => document.getElementById('file-import').click());
+                if(document.getElementById('file-import')) document.getElementById('file-import').onchange = App.importData;
+
+                // Theme
+                safeBind('btn-toggle-theme', 'onclick', () => {
+                    document.documentElement.classList.toggle('dark');
+                    const isDark = document.documentElement.classList.contains('dark');
+                    document.getElementById('theme-knob').className = `w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${isDark ? 'translate-x-5' : 'translate-x-0.5'}`;
+                    document.getElementById('btn-toggle-theme').className = `w-12 h-7 rounded-full relative transition-colors duration-300 focus:outline-none ${isDark ? 'bg-green-500' : 'bg-gray-300'}`;
+                    localStorage.setItem('sn_theme', isDark ? 'dark' : 'light');
+                });
+                if(localStorage.getItem('sn_theme') === 'dark') {
+                    const btn = document.getElementById('btn-toggle-theme');
+                    if(btn) btn.click();
+                }
+                
+                // Sheets
+                if(UI.sheet.cancel) UI.sheet.cancel.onclick = () => App.hideActionSheet();
+                if(UI.sheet.overlay) UI.sheet.overlay.onclick = (e) => { if(e.target === UI.sheet.overlay) App.hideActionSheet(); };
+                
+                if(UI.restoreSheet.cancel) UI.restoreSheet.cancel.onclick = () => App.hideRestoreSheet();
+                if(UI.restoreSheet.overlay) UI.restoreSheet.overlay.onclick = (e) => { if(e.target === UI.restoreSheet.overlay) App.hideRestoreSheet(); };
+                if(UI.restoreSheet.confirm) UI.restoreSheet.confirm.onclick = App.confirmRestore;
+            },
+
+            handleFooterAction() {
+                if (State.viewMode === 'notes') { App.createNote(); } 
+                else { App.showActionSheet('empty_trash'); }
+            },
+
+            setAuthMode(mode) {
+                State.authMode = mode;
+                const isLogin = mode === 'login';
+                document.getElementById('auth-indicator').style.transform = isLogin ? 'translateX(0)' : 'translateX(100%)';
+                document.getElementById('tab-login').className = isLogin ? "w-1/2 z-10 text-[13px] font-medium text-ios-text transition-colors" : "w-1/2 z-10 text-[13px] font-medium text-ios-subtext transition-colors";
+                document.getElementById('tab-signup').className = !isLogin ? "w-1/2 z-10 text-[13px] font-medium text-ios-text transition-colors" : "w-1/2 z-10 text-[13px] font-medium text-ios-subtext transition-colors";
+                document.getElementById('btn-auth-text').innerText = isLogin ? "Log In" : "Create Account";
+                document.getElementById('auth-error').classList.add('hidden');
+            },
+
+            async performAuth() {
+                const email = document.getElementById('auth-email').value.trim();
+                const pass = document.getElementById('auth-pass').value;
+                if(!email || !pass) return;
+                document.getElementById('btn-auth-text').innerText = "Processing...";
+                document.getElementById('btn-auth-loader').classList.remove('hidden');
+                try {
+                    if(State.authMode === 'signup') await createUserWithEmailAndPassword(auth, email, pass);
+                    else await signInWithEmailAndPassword(auth, email, pass);
+                } catch(e) {
+                    document.getElementById('auth-error').innerText = "Invalid Credentials";
+                    document.getElementById('auth-error').classList.remove('hidden');
+                } finally {
+                    document.getElementById('btn-auth-text').innerText = State.authMode === 'login' ? "Log In" : "Create Account";
+                    document.getElementById('btn-auth-loader').classList.add('hidden');
+                }
+            },
+
+            async performDecrypt() {
+                const pass = document.getElementById('vault-key').value;
+                if(!pass) return;
+                document.getElementById('btn-decrypt').innerText = "Verifying...";
+                try {
+                    let key;
+                    if(State.isNewUser) {
+                        const salt = crypto.getRandomValues(new Uint8Array(16));
+                        const saltStr = Crypto.b64e(salt.buffer);
+                        key = await Crypto.deriveKey(pass, saltStr);
+                        const check = await Crypto.encrypt(key, "VALID");
+                        State.vaultMeta = { salt: saltStr, check: check.ct, checkIv: check.iv };
+                        State.notes = [{ id: 'n-'+Date.now(), title: 'Welcome', content: 'Secure notes initialized.', updatedAt: Date.now(), pinned: false, deleted: false }];
+                        await App.syncToCloud();
+                    } else {
+                        if(State.vaultMeta.kdf) { // Legacy
+                            const { salt, iterations } = State.vaultMeta.kdf;
+                            const kek = await Crypto.deriveKey(pass, salt, iterations);
+                            const rawKeyObj = await Crypto.decrypt(kek, State.vaultMeta.wrappedKey);
+                            key = await crypto.subtle.importKey('raw', Crypto.b64d(rawKeyObj.k), {name:'AES-GCM'}, true, ['encrypt','decrypt']);
+                        } else {
+                            key = await Crypto.deriveKey(pass, State.vaultMeta.salt);
+                            if(State.vaultMeta.check) await Crypto.decrypt(key, {ct: State.vaultMeta.check, iv: State.vaultMeta.checkIv});
+                        }
+                        State.notes = [];
+                        if(State.rawEncryptedData) {
+                            for(let enc of State.rawEncryptedData) {
+                                try { 
+                                    const n = await Crypto.decrypt(key, enc);
+                                    if(typeof n.deleted === 'undefined') n.deleted = false;
+                                    if(typeof n.pinned === 'undefined') n.pinned = false;
+                                    State.notes.push(n);
+                                } catch(e){}
+                            }
+                        }
+                    }
+                    State.masterKey = key;
+                    App.enterApp();
+                } catch(e) {
+                    console.error(e);
+                    document.getElementById('btn-decrypt').innerText = "Incorrect Password";
+                    setTimeout(() => document.getElementById('btn-decrypt').innerText = "Unlock", 1500);
+                }
+            },
+
+            async syncToCloud() {
+                if(!State.user || !State.masterKey) return;
+                const encNotes = [];
+                for(let n of State.notes) encNotes.push(await Crypto.encrypt(State.masterKey, n));
+                await setDoc(doc(db, 'users', State.user.uid), { meta: JSON.stringify(State.vaultMeta), data: JSON.stringify(encNotes), updatedAt: serverTimestamp() });
+            },
+
+            enterApp() {
+                UI.screens.vault.classList.add('hidden');
+                UI.screens.app.classList.remove('hidden');
+                App.updateCounts();
+                App.switchView('notes');
+            },
+
+            updateCounts() {
+                const active = State.notes.filter(n => !n.deleted).length;
+                const trash = State.notes.filter(n => n.deleted).length;
+                UI.sidebar.cntNotes.innerText = active;
+                UI.sidebar.cntTrash.innerText = trash;
+                
+                const currentCount = State.viewMode === 'trash' ? trash : active;
+                UI.app.count.innerText = `${currentCount} Notes`;
+            },
+
+            switchView(mode) {
+                State.viewMode = mode;
+                UI.app.title.innerText = mode === 'trash' ? 'Trash' : 'Notes';
+                if(mode === 'notes') {
+                    UI.sidebar.navNotes.classList.add('bg-ios-card', 'shadow-sm');
+                    UI.sidebar.navTrash.classList.remove('bg-ios-card', 'shadow-sm');
+                    UI.app.footerActionBtn.innerHTML = '<i class="fa-regular fa-pen-to-square text-[26px]"></i>';
+                    UI.app.footerActionBtn.classList.remove('text-ios-red');
+                    UI.app.footerActionBtn.classList.add('text-ios-yellow');
+                } else {
+                    UI.sidebar.navTrash.classList.add('bg-ios-card', 'shadow-sm');
+                    UI.sidebar.navNotes.classList.remove('bg-ios-card', 'shadow-sm');
+                    UI.app.footerActionBtn.innerHTML = '<i class="fa-solid fa-trash-can text-[22px]"></i>';
+                    UI.app.footerActionBtn.classList.remove('text-ios-yellow');
+                    UI.app.footerActionBtn.classList.add('text-ios-red');
+                }
+                App.renderList();
+                App.updateCounts();
+            },
+
+            renderList() {
+                const term = document.getElementById('search-input').value.toLowerCase();
+                let filtered = State.notes.filter(n => 
+                    (n.title.toLowerCase().includes(term) || n.content.toLowerCase().includes(term))
+                ).sort((a,b) => b.updatedAt - a.updatedAt);
+
+                let pinned = [], normal = [];
+
+                if(State.viewMode === 'trash') {
+                    filtered = filtered.filter(n => n.deleted);
+                    normal = filtered;
+                } else {
+                    filtered = filtered.filter(n => !n.deleted);
+                    pinned = filtered.filter(n => n.pinned);
+                    normal = filtered.filter(n => !n.pinned);
+                }
+
+                UI.app.list.innerHTML = ''; UI.app.pinnedList.innerHTML = '';
+
+                if(filtered.length === 0) {
+                    UI.app.pinnedSec.classList.add('hidden'); 
+                    UI.app.notesSecHeader.classList.add('hidden');
+                    UI.app.list.classList.add('hidden');
+                    UI.app.empty.classList.remove('hidden');
+                    UI.app.empty.querySelector('p').innerText = State.viewMode === 'trash' ? 'Trash is Empty' : 'No Notes';
+                } else {
+                    UI.app.empty.classList.add('hidden');
+                    UI.app.list.classList.remove('hidden');
+                    
+                    if(pinned.length > 0 && State.viewMode === 'notes') {
+                        UI.app.pinnedSec.classList.remove('hidden');
+                        UI.app.pinnedList.innerHTML = pinned.map(n => App.createNoteHTML(n)).join('');
+                        UI.app.notesSecHeader.classList.remove('hidden');
+                    } else {
+                        UI.app.pinnedSec.classList.add('hidden');
+                        UI.app.notesSecHeader.classList.add('hidden');
+                    }
+
+                    UI.app.list.innerHTML = normal.map(n => App.createNoteHTML(n)).join('');
+                }
+                App.updateCounts();
+            },
+
+            createNoteHTML(n) {
+                const now = new Date();
+                const d = new Date(n.updatedAt);
+                const isToday = now.toDateString() === d.toDateString();
+                const isYesterday = new Date(now.setDate(now.getDate()-1)).toDateString() === d.toDateString();
+                
+                let dateStr;
+                if (isToday) dateStr = d.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
+                else if (isYesterday) dateStr = "Yesterday";
+                else dateStr = d.toLocaleDateString([], {month:'numeric', day:'numeric', year:'2-digit'});
+
+                const pinIcon = n.pinned && !n.deleted ? '<i class="fa-solid fa-thumbtack text-ios-yellow text-xs mr-1"></i>' : '';
+                
+                return `<div class="list-item-active pl-4 pr-0 py-3 cursor-pointer flex flex-col gap-0.5 bg-ios-card" onclick="App.openNote('${n.id}')">
+                    <div class="flex justify-between pr-4">
+                        <h3 class="text-[17px] font-bold text-ios-text truncate">${pinIcon}${n.title || 'New Note'}</h3>
+                    </div>
+                    <div class="flex gap-2 items-start pr-4">
+                        <span class="text-[15px] text-ios-subtext whitespace-nowrap flex-shrink-0 mt-[1px]">${dateStr}</span>
+                        <p class="text-[15px] text-ios-subtext note-preview leading-snug font-normal">${n.content || 'No additional text'}</p>
+                    </div></div>`;
+            },
+
+            openNote(id) { window.App.openNoteActual(id); },
+            
+            openNoteActual(id) {
+                const n = State.notes.find(x => x.id === id); if(!n) return;
+                State.currentNoteId = id;
+                document.getElementById('note-title').value = n.title;
+                document.getElementById('note-body').value = n.content;
+                
+                const isTrash = n.deleted;
+                document.getElementById('note-title').disabled = isTrash;
+                document.getElementById('note-body').disabled = isTrash;
+                
+                UI.app.pinText.innerText = n.pinned ? "Unpin Note" : "Pin Note";
+                UI.app.deleteTrigger.innerText = isTrash ? "Recover Note" : "Move to Trash";
+                UI.app.deleteTrigger.classList.toggle('text-ios-blue', isTrash);
+                UI.app.deleteTrigger.classList.toggle('text-ios-red', !isTrash);
+                
+                UI.app.deleteTrigger.onclick = () => {
+                    UI.app.moreMenu.classList.add('hidden');
+                    if(isTrash) App.recoverNote();
+                    else App.showActionSheet('delete');
+                };
+
+                UI.app.moreMenu.classList.add('hidden');
+                UI.app.editor.classList.remove('translate-x-full');
+                App.updateStats();
+            },
+
+            createNote() {
+                State.currentNoteId = 'n-' + Date.now();
+                document.getElementById('note-title').value = "";
+                document.getElementById('note-body').value = "";
+                document.getElementById('note-title').disabled = false;
+                document.getElementById('note-body').disabled = false;
+                
+                UI.app.pinText.innerText = "Pin Note";
+                UI.app.deleteTrigger.innerText = "Move to Trash";
+                UI.app.deleteTrigger.classList.add('text-ios-red');
+                UI.app.deleteTrigger.onclick = () => { UI.app.moreMenu.classList.add('hidden'); App.showActionSheet('delete'); };
+                
+                UI.app.moreMenu.classList.add('hidden');
+                UI.app.editor.classList.remove('translate-x-full');
+                App.updateStats();
+                setTimeout(() => document.getElementById('note-body').focus(), 300);
+            },
+
+            saveAndClose() {
+                const title = document.getElementById('note-title').value.trim();
+                const content = document.getElementById('note-body').value.trim();
+                let updated = false;
+
+                if(State.viewMode === 'trash') {
+                    UI.app.editor.classList.add('translate-x-full');
+                    return; 
+                }
+
+                if(!title && !content) {
+                    if(State.currentNoteId) {
+                        State.notes = State.notes.filter(n => n.id !== State.currentNoteId);
+                        updated = true;
+                    }
+                } else {
+                    const idx = State.notes.findIndex(n => n.id === State.currentNoteId);
+                    const noteObj = { 
+                        id: State.currentNoteId, 
+                        title, content, 
+                        updatedAt: Date.now(), 
+                        pinned: idx > -1 ? State.notes[idx].pinned : false,
+                        deleted: false
+                    };
+                    
+                    if(idx > -1) {
+                        if(JSON.stringify(State.notes[idx]) !== JSON.stringify(noteObj)) {
+                            State.notes[idx] = noteObj;
+                            updated = true;
+                        }
+                    } else {
+                        State.notes.unshift(noteObj);
+                        updated = true;
+                    }
+                }
+
+                if(updated) { App.syncToCloud(); App.renderList(); }
+                UI.app.editor.classList.add('translate-x-full');
+                State.currentNoteId = null;
+            },
+
+            togglePin() {
+                if(State.currentNoteId) {
+                    const idx = State.notes.findIndex(n => n.id === State.currentNoteId);
+                    if(idx > -1) {
+                        State.notes[idx].pinned = !State.notes[idx].pinned;
+                        App.syncToCloud();
+                        App.renderList();
+                    }
+                    UI.app.moreMenu.classList.add('hidden');
+                }
+            },
+
+            copyNote() {
+                const txt = `${document.getElementById('note-title').value}\n\n${document.getElementById('note-body').value}`;
+                navigator.clipboard.writeText(txt);
+                UI.app.moreMenu.classList.add('hidden');
+            },
+
+            showActionSheet(type) {
+                // Show Action Sheet
+                UI.sheet.overlay.classList.remove('hidden');
+                setTimeout(() => { 
+                    UI.sheet.overlay.classList.remove('opacity-0'); 
+                    UI.sheet.panel.classList.remove('translate-y-full'); 
+                }, 10);
+
+                // Configure for Type
+                if (type === 'delete') {
+                    UI.sheet.title.innerText = "This note will be moved to Trash.";
+                    UI.sheet.confirm.innerText = "Delete Note";
+                    UI.sheet.confirm.onclick = App.trashNote;
+                } else if (type === 'empty_trash') {
+                    UI.sheet.title.innerText = "Permanently delete all items in Trash?";
+                    UI.sheet.confirm.innerText = "Empty Trash";
+                    UI.sheet.confirm.onclick = App.emptyTrashConfirm;
+                }
+            },
+
+            hideActionSheet() {
+                UI.sheet.panel.classList.add('translate-y-full');
+                UI.sheet.overlay.classList.add('opacity-0');
+                setTimeout(() => UI.sheet.overlay.classList.add('hidden'), 300);
+            },
+
+            showRestoreSheet(show) {
+                if(show) {
+                    UI.restoreSheet.overlay.classList.remove('hidden');
+                    setTimeout(() => { 
+                        UI.restoreSheet.overlay.classList.remove('opacity-0'); 
+                        UI.restoreSheet.panel.classList.remove('translate-y-full'); 
+                    }, 10);
+                } else {
+                    UI.restoreSheet.panel.classList.add('translate-y-full');
+                    UI.restoreSheet.overlay.classList.add('opacity-0');
+                    setTimeout(() => UI.restoreSheet.overlay.classList.add('hidden'), 300);
+                }
+            },
+
+            hideRestoreSheet() {
+                App.showRestoreSheet(false);
+                State.pendingBackup = null;
+            },
+
+            trashNote() {
+                const idx = State.notes.findIndex(n => n.id === State.currentNoteId);
+                if(idx > -1) {
+                    State.notes[idx].deleted = true;
+                    State.notes[idx].pinned = false;
+                    App.syncToCloud();
+                    App.updateCounts();
+                    App.renderList();
+                }
+                App.hideActionSheet();
+                UI.app.editor.classList.add('translate-x-full');
+                State.currentNoteId = null;
+            },
+
+            recoverNote() {
+                const idx = State.notes.findIndex(n => n.id === State.currentNoteId);
+                if(idx > -1) {
+                    State.notes[idx].deleted = false;
+                    App.syncToCloud();
+                    App.updateCounts();
+                    App.renderList();
+                }
+                UI.app.editor.classList.add('translate-x-full');
+                State.currentNoteId = null;
+            },
+
+            emptyTrash() {
+                // Triggered from footer button in Trash view
+                // Wrapper handled by showActionSheet
+            },
+
+            emptyTrashConfirm() {
+                State.notes = State.notes.filter(n => !n.deleted);
+                App.syncToCloud();
+                App.updateCounts();
+                App.renderList(); 
+                App.hideActionSheet();
+            },
+
+            updateStats() {
+                const text = document.getElementById('note-body').value || "";
+                const words = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+                UI.app.stats.innerText = `${words} Words`;
+            },
+
+            openSettings() {
+                document.getElementById('settings-email').innerText = State.user ? State.user.email : 'Unknown';
+                UI.app.settings.classList.remove('translate-x-full');
+            },
+
+            showVaultScreen() {
+                UI.screens.auth.classList.add('hidden'); UI.screens.app.classList.add('hidden'); UI.screens.app.classList.remove('flex'); UI.screens.vault.classList.remove('hidden');
+                UI.vault.display.innerText = State.user.email; UI.vault.key.value = '';
+                if(State.isNewUser) { UI.vault.title.innerText = "Initialize Vault"; UI.vault.btn.innerText = "Create Vault"; UI.vault.hint.classList.remove('hidden'); }
+                else { UI.vault.title.innerText = "Unlock Vault"; UI.vault.btn.innerText = "Unlock"; UI.vault.hint.classList.add('hidden'); }
+            },
+
+            // Data Mgmt
+            async exportData() {
+                if(!State.masterKey) return;
+                const encNotes = [];
+                for(let n of State.notes) { 
+                    try { encNotes.push(await Crypto.encrypt(State.masterKey, n)); } catch(e){} 
+                }
+                const backup = { meta: State.vaultMeta, data: encNotes };
+                const blob = new Blob([JSON.stringify(backup)], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `secure-notes-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+                URL.revokeObjectURL(url);
+            },
+
+            importData(e) {
+                const file = e.target.files[0];
+                if(!file) return;
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    try {
+                        const backup = JSON.parse(ev.target.result);
+                        if(!backup.meta || !backup.data) throw new Error("Invalid");
+                        State.pendingBackup = backup;
+                        App.showRestoreSheet(true);
+                    } catch(err) { alert("Import Failed: Invalid File"); }
+                };
+                reader.readAsText(file);
+                document.getElementById('file-import').value = '';
+            },
+
+            async confirmRestore() {
+                if(!State.pendingBackup) return;
+                try {
+                     await setDoc(doc(db, 'users', State.user.uid), { 
+                        meta: JSON.stringify(State.pendingBackup.meta), 
+                        data: JSON.stringify(State.pendingBackup.data), 
+                        updatedAt: serverTimestamp() 
+                    });
+                    location.reload();
+                } catch(e) { console.error(e); alert("Restore failed."); }
+            }
+        };
+
+        // Expose
+        window.App = App;
+
+        onAuthStateChanged(auth, async (user) => {
+            if(user) {
+                State.user = user;
+                const ref = doc(db, 'users', user.uid);
+                try {
+                    const snap = await getDoc(ref);
+                    if(snap.exists()) {
+                        const d = snap.data();
+                        if(d.meta && d.data) { State.vaultMeta = JSON.parse(d.meta); State.rawEncryptedData = JSON.parse(d.data); State.isNewUser = false; }
+                        else { State.isNewUser = true; }
+                    } else { State.isNewUser = true; }
+                    App.showVaultScreen();
+                } catch(e) { State.isNewUser = true; App.showVaultScreen(); }
+            } else { UI.screens.auth.classList.remove('hidden'); UI.screens.vault.classList.add('hidden'); UI.screens.app.classList.add('hidden'); }
+        });
+
+        document.addEventListener('DOMContentLoaded', App.init);
+    </script>
+</body>
+</html>
