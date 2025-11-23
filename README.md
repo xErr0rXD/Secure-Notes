@@ -2,7 +2,7 @@
 
 > **Your private digital sanctuary.**
 
-SecureNotes is a privacy-first, end-to-end encrypted note-taking application designed with a premium, native iOS-style interface. It ensures that your thoughts remain exclusively yours through client-side encryption and a strict zero-knowledge architecture.
+Secure Notes is a privacy-first, end-to-end encrypted note-taking application designed with a premium, native iOS-style interface. It ensures that your thoughts remain exclusively yours through client-side encryption and a strict zero-knowledge architecture.
 
 ---
 
